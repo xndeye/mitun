@@ -1,0 +1,255 @@
+# ============================================================
+# MiTun 配置示例 — KernelSU 模块
+# 路径: /data/adb/mitun/config.yaml
+#
+# 快速开始:
+#   1. 填写 proxy-providers 中的订阅链接
+#   2. 按需修改 secret 密码
+# ============================================================
+
+# --- 端口 ---
+mixed-port: 7890    # HTTP/SOCKS5 混合端口（TUN 模式下可设为 0）
+redir-port: 7891    # 透明代理 redirect 端口（TCP）
+tproxy-port: 7892   # 透明代理 tproxy 端口（UDP）
+
+# --- 基础 ---
+mode: rule
+ipv6: false
+log-level: warning
+allow-lan: false
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: strict
+
+# --- 外部控制器 ---
+external-ui: ui                     # 【请勿更改】会影响 KernelSU 管理器中模块 Web 控制台功能
+external-controller: 0.0.0.0:9090   # 【请勿更改】会影响 KernelSU 管理器中模块 Web 控制台功能
+external-ui-url: "https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+secret: "mihomo"    # 【建议修改】API 访问密码
+
+# --- 连接保活 ---
+keep-alive-idle: 600
+keep-alive-interval: 15
+
+# --- 持久化 ---
+profile:
+  store-selected: true   # 记住策略组选择
+  store-fake-ip: true    # 持久化 fake-ip 映射
+
+# --- GeoData ---
+geodata-mode: false       # false = mmdb 格式，true = dat 格式
+geodata-loader: standard
+geo-auto-update: true
+geo-update-interval: 12   # 自动更新间隔（小时）
+geox-url:
+  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
+  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb"
+  asn: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb"
+
+# --- TUN 核心配置 ---
+tun:
+  enable: true
+  stack: mixed        # system / gvisor / mixed
+  device: mihomo      # 【请勿更改】会影响模块运行
+  dns-hijack:
+    - "any:53"
+  strict-route: true
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+  endpoint-independent-nat: true
+
+  # 白名单模式：仅代理列出的应用；不填此字段则代理所有应用
+  include-package:
+    # - "com.google.android.gms"
+    # - "com.google.android.gsf"
+    # - "com.google.android.gms.location.history"
+    # - "com.google.android.webview"
+    # - "com.google.android.apps.photos"
+    # - "com.android.vending"
+    # - "com.android.providers.downloads"
+    # - "com.android.virtualization.terminal"
+    # - "com.android.shell"
+    # - "com.android.email"
+
+  # 排除私有地址段，不走 TUN
+  route-exclude-address:
+    - 0.0.0.0/8
+    - 10.0.0.0/8
+    - 127.0.0.0/8
+    - 169.254.0.0/16
+    - 172.16.0.0/12
+    - 192.0.0.0/24
+    - 192.0.2.0/24
+    - 192.168.0.0/16
+    - 224.0.0.0/3
+    - ::/127
+    - fd00::/8
+    - fe80::/10
+    - ff00::/8
+
+# --- DNS 配置（按需修改） ---
+dns-anchor:
+  # Bootstrap：用于解析加密 DNS 服务器自身的域名，必须为直连可达的 IP
+  bootstrap: &bootstrap
+    - tls://1.12.12.12:853
+    - tls://223.5.5.5:853
+
+  # 直连 DNS：国内域名解析，走直连通道
+  direct: &direct
+    - https://doh.pub/dns-query           # 腾讯 DoH
+    - https://dns.alidns.com/dns-query    # 阿里 DoH
+    - tls://dot.pub:853                   # 腾讯 DoT
+    - tls://dns.alidns.com:853            # 阿里 DoT
+
+  # 代理 DNS：代理域名解析，走代理通道
+  proxy: &proxy
+    - https://1.1.1.1/dns-query          # Cloudflare DoH
+    - https://8.8.8.8/dns-query          # Google DoH
+    - tls://1.1.1.1:853                  # Cloudflare DoT
+    - tls://8.8.8.8:853                  # Google DoT
+
+  # 系统 DNS
+  system: &system
+    - system
+
+dns:
+  enable: true
+  listen: 0.0.0.0:53
+  ipv6: false
+  prefer-h3: true          # 优先使用 HTTP/3
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.0/15
+  fake-ip-range6: fc00:dead:cafe::/48
+  fake-ip-filter:
+    - rule-set:fake-ip-filter
+    - rule-set:direct
+    - geosite:geolocation-cn
+  nameserver: *direct
+  default-nameserver: *bootstrap
+
+url-test:
+  &url-test {
+    type: url-test,
+    url: "https://captive.apple.com",
+    interval: 1800,
+    include-all: true,
+  }
+
+p:
+  &p {
+    type: http,
+    interval: 86400,
+    health-check:
+      { enable: true, url: "https://captive.apple.com", interval: 1000 },
+  }
+
+# --- 代理提供者（必填） ---
+proxy-providers:
+  self-hosted:
+    <<: *p
+    url: "https://your-subscription-url-here"  # 【必填】替换为实际订阅链接
+    proxy: DIRECT
+
+proxies:
+  - name: Direct
+    type: direct
+    udp: true
+    <<: *url-test
+
+proxy-groups:
+  - {
+      name: "Select Proxy",
+      icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Proxy.png",
+      type: select,
+      <<: *url-test,
+    }
+  - {
+      name: "Fallback",
+      icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Final.png",
+      type: select,
+      proxies: [Direct, Select Proxy],
+    }
+  - {
+      name: "AI",
+      icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AI.png",
+      type: select,
+      proxies: [Select Proxy],
+      <<: *url-test,
+    }
+  - {
+      name: "Steam 🇨🇳",
+      icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Steam.png",
+      type: select,
+      proxies: [Select Proxy],
+      <<: *url-test,
+    }
+  - {
+      name: "Apple 🇨🇳",
+      icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png",
+      type: select,
+      proxies: [Select Proxy],
+      <<: *url-test,
+    }
+  - {
+      name: "Microsoft 🇨🇳",
+      icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Microsoft.png",
+      type: select,
+      proxies: [Select Proxy],
+      <<: *url-test,
+    }
+
+rules:
+  - RULE-SET,lan,Direct
+  - RULE-SET,reject,REJECT
+  - RULE-SET,steam@cn,Steam 🇨🇳
+  - RULE-SET,apple@cn,Apple 🇨🇳
+  - RULE-SET,microsoft@cn,Microsoft 🇨🇳
+  - RULE-SET,ai,AI
+  - RULE-SET,proxy,Select Proxy
+  - RULE-SET,direct,Direct
+  - RULE-SET,lan@ip,Direct,no-resolve
+  - RULE-SET,reject@ip,Direct,no-resolve
+  - RULE-SET,proxy@ip,Select Proxy
+  - RULE-SET,direct@ip,Direct
+  - MATCH,Fallback
+
+rule-anchor:
+  classical:
+    &classical {
+      type: http,
+      interval: 43200,
+      behavior: classical,
+      format: yaml,
+    }
+  domain:
+    &domain { type: http, interval: 43200, behavior: domain, format: yaml }
+
+rule-providers:
+  fake-ip-filter:
+    { <<: *domain, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/fakeip-filter.yaml" }
+  reject:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/reject.yaml" }
+  reject@ip:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/reject@ip.yaml" }
+  steam@cn:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/steam@cn.yaml" }
+  microsoft@cn:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/microsoft@cn.yaml" }
+  apple@cn:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/apple@cn.yaml" }
+  ai:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/ai.yaml" }
+  proxy:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/proxy.yaml" }
+  proxy@ip:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/proxy@ip.yaml" }
+  direct:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/direct.yaml" }
+  direct@ip:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/direct@ip.yaml" }
+  lan@ip:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/lan@ip.yaml" }
+  lan:
+    { <<: *classical, url: "https://fastly.jsdelivr.net/gh/xndeye/rule-merger@release/lan.yaml" }

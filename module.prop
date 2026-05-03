@@ -1,0 +1,6 @@
+id=mitun
+name=MiTun
+version=v1.0.0
+versionCode=1
+author=mitun
+description=Run Mihomo (clash-meta) in TUN mode to proxy all Android traffic

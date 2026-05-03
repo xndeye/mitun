@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Sync version from tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG}"
+
+          # Derive numeric versionCode from semver (major*10000 + minor*100 + patch)
+          SEMVER="${TAG#v}"
+          MAJOR="$(echo "$SEMVER" | cut -d. -f1)"
+          MINOR="$(echo "$SEMVER" | cut -d. -f2)"
+          PATCH="$(echo "$SEMVER" | cut -d. -f3)"
+          PATCH="${PATCH:-0}"
+          VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+
+          echo "TAG=$TAG"
+          echo "VERSION=$VERSION"
+          echo "VERSION_CODE=$VERSION_CODE"
+
+          sed -i "s/^version=.*/version=${VERSION}/"         module.prop
+          sed -i "s/^versionCode=.*/versionCode=${VERSION_CODE}/" module.prop
+
+          echo "--- module.prop after update ---"
+          cat module.prop
+
+          echo "VERSION=${VERSION}"         >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
+
+      - name: Download Mihomo binaries
+        run: |
+          MIHOMO_BASE="https://github.com/MetaCubeX/mihomo/releases"
+
+          # Fetch the version string from the version.txt asset (no API needed)
+          MIHOMO_VER="$(curl -fsSL --retry 3 -L \
+            "${MIHOMO_BASE}/latest/download/version.txt" | tr -d '[:space:]')"
+          echo "Mihomo version: $MIHOMO_VER"
+
+          ARM_URL="${MIHOMO_BASE}/download/${MIHOMO_VER}/mihomo-android-arm64-v8-${MIHOMO_VER}.gz"
+
+          echo "arm URL: $ARM_URL"
+
+          mkdir -p files
+
+          curl -fsSL --retry 3 -L "$ARM_URL" -o /tmp/mihomo.gz
+          gunzip -c /tmp/mihomo.gz > files/mihomo
+          chmod 755 files/mihomo
+
+          echo "Mihomo binary downloaded:"
+          ls -lh files/mihomo
+
+      - name: Download GeoData files
+        run: |
+          mkdir -p files
+
+          echo "Downloading GeoData files..."
+
+          curl -fsSL \
+            "https://github.com/MetaCubeX/meta-rules-dat/releases/latest/download/geoip.dat" \
+            -o files/GeoIP.dat
+
+          curl -fsSL \
+            "https://github.com/MetaCubeX/meta-rules-dat/releases/latest/download/geosite.dat" \
+            -o files/GeoSite.dat
+
+          curl -fsSL \
+            "https://github.com/MetaCubeX/meta-rules-dat/releases/latest/download/geoip.metadb" \
+            -o files/geoip.metadb
+
+          echo "GeoData files downloaded:"
+          ls -lh files/GeoIP.dat files/GeoSite.dat files/geoip.metadb
+
+      - name: Download Mihomo Web UI (zashboard)
+        run: |
+          mkdir -p files
+
+          UI_URL="https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+          echo "UI URL: $UI_URL"
+
+          curl -fsSL --retry 3 -L "$UI_URL" -o files/ui.zip
+
+          echo "UI archive downloaded:"
+          ls -lh files/ui.zip
+
+      - name: Syntax check
+        run: |
+          FAILED=0
+          for f in \
+            common_functions.sh \
+            customize.sh \
+            service.sh \
+            boot-completed.sh \
+            uninstall.sh \
+            tools/mitun_ctl.sh \
+            build.sh \
+            META-INF/com/google/android/update-binary; do
+            if sh -n "$f" 2>&1; then
+              echo "OK: $f"
+            else
+              echo "FAIL: $f"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
+
+      - name: Build module zip
+        run: |
+          sh build.sh
+          echo "ZIP_NAME=mitun-${VERSION}.zip" >> "$GITHUB_ENV"
+
+      - name: Compute checksum
+        run: |
+          sha256sum "$ZIP_NAME" | tee "${ZIP_NAME}.sha256"
+          echo "SHA256=$(cut -d' ' -f1 "${ZIP_NAME}.sha256")" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: "MiTun ${{ env.VERSION }}"
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ### 安装方法
+            1. 下载 `${{ env.ZIP_NAME }}`
+            2. 在 KernelSU 管理器中选择本地安装
+            3. 重启设备
+            4. 编辑配置文件：`/data/adb/mitun/config.yaml`
+
+            ### 文件校验
+            ```
+            SHA256: ${{ env.SHA256 }}
+            ```
+
+            ### 包含内容
+            - Mihomo 二进制（arm64，来自 [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) 最新版本）
+            - GeoIP.dat / GeoSite.dat / geoip.metadb（来自 [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) 最新版本）
+            - Web UI（zashboard，来自 [Zephyruso/zashboard](https://github.com/Zephyruso/zashboard) 最新版本，安装时解压至 `/data/adb/mitun/ui/`）
+
+            ### 变更说明
+            请查看 [提交记录](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})。
+          files: |
+            ${{ env.ZIP_NAME }}
+            ${{ env.ZIP_NAME }}.sha256
