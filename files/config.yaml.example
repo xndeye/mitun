@@ -7,11 +7,6 @@
 #   2. 按需修改 secret 密码
 # ============================================================
 
-# --- 端口 ---
-mixed-port: 7890    # HTTP/SOCKS5 混合端口（TUN 模式下可设为 0）
-redir-port: 7891    # 透明代理 redirect 端口（TCP）
-tproxy-port: 7892   # 透明代理 tproxy 端口（UDP）
-
 # --- 基础 ---
 mode: rule
 ipv6: false
@@ -22,10 +17,10 @@ tcp-concurrent: true
 find-process-mode: strict
 
 # --- 外部控制器 ---
-external-ui: ui                     # 【请勿更改】会影响 KernelSU 管理器中模块 Web 控制台功能
-external-controller: 0.0.0.0:9090   # 【请勿更改】会影响 KernelSU 管理器中模块 Web 控制台功能
-external-ui-url: "https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
-secret: "mihomo"    # 【建议修改】API 访问密码
+external-ui: ui
+external-controller: 127.0.0.1:9090
+external-ui-url: "https://gh-proxy.org/https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+secret: "【替换你的控制器密钥，留空表示无】"
 
 # --- 连接保活 ---
 keep-alive-idle: 600
@@ -33,25 +28,39 @@ keep-alive-interval: 15
 
 # --- 持久化 ---
 profile:
-  store-selected: true   # 记住策略组选择
-  store-fake-ip: true    # 持久化 fake-ip 映射
+  store-selected: true
+  store-fake-ip: true
 
 # --- GeoData ---
-geodata-mode: false       # false = mmdb 格式，true = dat 格式
+geodata-mode: false
 geodata-loader: standard
 geo-auto-update: true
-geo-update-interval: 12   # 自动更新间隔（小时）
+geo-update-interval: 12
 geox-url:
-  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
-  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
-  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb"
-  asn: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb"
+  geosite: https://gh-proxy.org/https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
+  mmdb: https://gh-proxy.org/https://raw.githubusercontent.com/Loyalsoldier/geoip/release/GeoLite2-Country.mmdb
+  geoip: https://gh-proxy.org/https://github.com/v2ray/geoip/raw/release/geoip.dat
+  asn: https://gh-proxy.org/https://raw.githubusercontent.com/Loyalsoldier/geoip/release/GeoLite2-ASN.mmdb
+
+# --- 嗅探配置 ---
+sniffer:
+  enable: true
+  force-dns-mapping: false
+  parse-pure-ip: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
 
 # --- TUN 核心配置 ---
 tun:
   enable: true
   stack: mixed        # system / gvisor / mixed
-  device: mihomo      # 【请勿更改】会影响模块运行
+  device: mihomo      # 【请勿更改】
   dns-hijack:
     - "any:53"
   strict-route: true
@@ -116,7 +125,7 @@ dns-anchor:
 
 dns:
   enable: true
-  listen: 0.0.0.0:53
+  listen: 127.0.0.1:53     # 默认仅监听本机
   ipv6: false
   prefer-h3: true          # 优先使用 HTTP/3
   enhanced-mode: fake-ip
@@ -149,7 +158,7 @@ p:
 proxy-providers:
   self-hosted:
     <<: *p
-    url: "https://your-subscription-url-here"  # 【必填】替换为实际订阅链接
+    url: "https://your-subscription-url-here"  # 【替换你的订阅链接】
     proxy: DIRECT
 
 proxies:

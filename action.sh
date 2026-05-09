@@ -1,21 +1,31 @@
 #!/system/bin/sh
-# action.sh — KernelSU MiTun Module
-# Executed when the user taps the Action button in the KernelSU manager.
-# Toggles MiTun: if running → stop mihomo (module stays enabled);
-#                if stopped  → start mihomo.
+# action.sh — toggled when the user taps the Action button in KernelSU manager.
 
-MODDIR="$(dirname "$0")"
+MODDIR="${0%/*}"
 . "$MODDIR/common_functions.sh"
+
+LOCK_DIR="$RUN_DIR/action.lock"
+
+mkdir -p "$RUN_DIR"
+
+if ! try_lock "$LOCK_DIR"; then
+    ksud module config set override.description "⏳ Another MiTun action is in progress." 2>/dev/null || true
+    echo "⏳ Another MiTun action is in progress."
+    exit 1
+fi
+trap 'release_lock "$LOCK_DIR"' EXIT INT TERM
 
 if is_running; then
     stop_mihomo
-    log_info "action.sh: MiTun stopped"
-    ksud module config set override.description "MiTun — stopped (tap Action to start)" 2>/dev/null || true
-    echo "MiTun stopped."
+    ksud module config set override.description "⏹ MiTun stopped." 2>/dev/null || true
+    echo "⏹ MiTun stopped."
 else
-    log_info "action.sh: starting MiTun"
-    ensure_tun_device
-    start_mihomo
-    ksud module config set override.description "MiTun — running (tap Action to stop)" 2>/dev/null || true
-    echo "MiTun started."
+    if start_mihomo; then
+        ksud module config set override.description "▶ MiTun started." 2>/dev/null || true
+        echo "▶ MiTun started."
+    else
+        ksud module config set override.description "❌ MiTun failed to start — check $MIHOMO_LOG" 2>/dev/null || true
+        echo "❌ MiTun failed to start — check $MIHOMO_LOG"
+        exit 1
+    fi
 fi

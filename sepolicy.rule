@@ -1,14 +1,14 @@
-# SELinux 策略文件 — KernelSU MiTun 模块
-# 允许运行在 u:r:su:s0 上下文中的 mihomo 进程操作 TUN 设备及网络能力
+# SELinux rules for MiTun.
+#
+# Mihomo is invoked from KernelSU's `su` domain. On most stock Android builds
+# the `su` domain is already permissive enough that these rules are a no-op
+# safety net. Keep them as a minimal contract rather than an exhaustive list:
+#   - tun_device chr_file I/O: open /dev/net/tun and issue TUNSETIFF ioctls.
+#   - capability net_admin / net_raw: manage routes, rules, and raw sockets.
+#
+# If you hit avc denials in dmesg (`dmesg | grep avc | grep mihomo`), add the
+# specific rule rather than broadening these. Do NOT copy unrelated denials
+# from other modules — they usually don't apply.
 
-# 允许 mihomo 进程对 TUN 字符设备执行读、写、ioctl、open 操作
-# 这是 Mihomo 创建和使用 TUN 接口（Meta）所必需的
-allow su tun_device chr_file { read write ioctl open };
-
-# 授予 net_admin 和 net_raw 网络能力
-# net_admin：创建 TUN 接口、修改路由表（auto-route）所必需
-# net_raw：原始套接字操作所必需
+allow su tun_device chr_file { read write ioctl open getattr };
 allow su self capability { net_admin net_raw };
-
-# 允许 su 上下文向内核请求 SELinux 策略计算（可选，用于 SELinux 策略查询）
-allow su kernel security { compute_av };

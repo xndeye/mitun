@@ -1,22 +1,17 @@
 #!/system/bin/sh
-# boot-completed.sh — KernelSU MiTun Module
-# Health check script executed after system boot completes.
-# Waits for network to be fully ready, then checks if mihomo is running
-# and attempts a restart if it is not.
+# boot-completed.sh — post-boot health check.
+#
+# service.sh is the single start path; this script only observes and logs.
+# It deliberately does NOT call start_mihomo: keeping one start path avoids
+# the boot / Action race entirely.
 
-MODDIR="$(dirname "$0")"
+MODDIR="${0%/*}"
 . "$MODDIR/common_functions.sh"
 
-# Wait for network to be fully ready after boot
 sleep 10
 
-# Health check: restart if not running, log OK with PID if running
-if ! is_running; then
-    log_info "mihomo not running after boot, attempting restart"
-    start_mihomo
+if is_running; then
+    log_info "health check OK, pid=$(read_pid)"
 else
-    _pid="$(read_pid)"
-    log_info "mihomo health check OK, pid=$_pid"
+    log_error "not running after boot — check $MIHOMO_LOG (start via Action button if needed)"
 fi
-
-ksud module config set override.description "MiTun — running (tap Action to disable)" 2>/dev/null || true

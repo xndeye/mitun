@@ -1,40 +1,31 @@
 #!/system/bin/sh
-# service.sh — KernelSU MiTun Module
-# Executed by KernelSU in the late_start service phase.
-# Waits for boot completion, checks prerequisites, and starts Mihomo.
+# service.sh — KernelSU late_start entry point for MiTun.
 
-MODDIR="$(dirname "$0")"
+MODDIR="${0%/*}"
 . "$MODDIR/common_functions.sh"
 
-# Wait for sys.boot_completed=1 (timeout 60 seconds)
-_waited=0
-while [ "$_waited" -lt 60 ]; do
-    if [ "$(getprop sys.boot_completed)" = "1" ]; then
-        break
-    fi
+# Wait for boot_completed (up to 60s)
+_w=0
+while [ "$_w" -lt 60 ]; do
+    [ "$(getprop sys.boot_completed)" = "1" ] && break
     sleep 1
-    _waited=$((_waited + 1))
+    _w=$((_w + 1))
 done
 
-# Extra 5-second delay to ensure network is ready
+if [ "$(getprop sys.boot_completed)" != "1" ]; then
+    log_error "timed out waiting for sys.boot_completed; starting anyway"
+fi
+
+# Small grace for network bring-up
 sleep 5
 
-# Check config file exists
 if [ ! -f "$CONFIG_PATH" ]; then
-    log_error "config.yaml not found: $CONFIG_PATH — skipping Mihomo start"
+    log_error "config not found at $CONFIG_PATH — skipping start"
     exit 0
 fi
-
-# Check Mihomo binary exists and is executable
 if [ ! -x "$BIN_PATH" ]; then
-    log_error "mihomo binary not found or not executable: $BIN_PATH — skipping Mihomo start"
+    log_error "mihomo not found at $BIN_PATH — skipping start"
     exit 0
 fi
 
-# Ensure /dev/net/tun device node exists
-ensure_tun_device
-
-# Start Mihomo
 start_mihomo
-
-ksud module config set override.description "MiTun — running (tap Action to disable)" 2>/dev/null || true
