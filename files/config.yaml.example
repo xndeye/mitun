@@ -147,6 +147,7 @@ proxies:
   - name: Direct
     type: direct
     udp: true
+    <<: *url-test
 
 proxy-groups:
   - {

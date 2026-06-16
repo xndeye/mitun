@@ -135,6 +135,23 @@ _stop_pid() {
     sleep 1
 }
 
+protect_process() {
+    _p="$1"
+    [ -n "$_p" ] && [ -d "/proc/$_p" ] || return 0
+
+    _ok=1
+    if echo -1000 >"/proc/$_p/oom_score_adj" 2>/dev/null; then
+        _ok=0
+    fi
+    renice -20 "$_p" >/dev/null 2>&1 || true
+
+    if [ "$_ok" -eq 0 ]; then
+        log_info "protected process, pid=$_p"
+    else
+        log_error "failed to set oom_score_adj, pid=$_p"
+    fi
+}
+
 # Start lock — serializes concurrent start_mihomo invocations (service.sh vs
 # boot-completed.sh vs action.sh). Blocks up to 60s, reclaims dead holders.
 _acquire_start_lock() {
@@ -205,6 +222,7 @@ _do_start_mihomo() {
         return 1
     fi
 
+    protect_process "$_pid"
     printf '%s\n' "$_pid" >"$PID_FILE"
     log_info "started, pid=$_pid"
 
@@ -222,12 +240,11 @@ _do_start_mihomo() {
 
 # Idempotent. Symmetric with start: always cleans TUN on exit.
 stop_mihomo() {
-    _p="$(read_pid)"
-    if [ -z "$_p" ] || ! [ -d "/proc/$_p" ]; then
-        rm -f "$PID_FILE" 2>/dev/null
+    if ! is_running; then
         _cleanup_tun
         return 0
     fi
+    _p="$(read_pid)"
     _stop_pid "$_p"
     rm -f "$PID_FILE" 2>/dev/null
     _cleanup_tun
