@@ -16,16 +16,16 @@ fi
 trap 'release_lock "$LOCK_DIR"' EXIT INT TERM
 
 if is_running; then
-    stop_mihomo
+    stop_core
     ksud module config set override.description "⏹ MiTun stopped." 2>/dev/null || true
     echo "⏹ MiTun stopped."
 else
-    if start_mihomo; then
+    if start_core; then
         ksud module config set override.description "▶ MiTun started." 2>/dev/null || true
         echo "▶ MiTun started."
     else
-        ksud module config set override.description "❌ MiTun failed to start — check $MIHOMO_LOG" 2>/dev/null || true
-        echo "❌ MiTun failed to start — check $MIHOMO_LOG"
+        ksud module config set override.description "❌ MiTun failed to start — check $(core_log_path)" 2>/dev/null || true
+        echo "❌ MiTun failed to start — check $(core_log_path)"
         exit 1
     fi
 fi

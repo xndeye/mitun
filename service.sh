@@ -20,9 +20,9 @@ fi
 # Small grace for network bring-up
 sleep 5
 
-if [ ! -x "$BIN_PATH" ]; then
-    log_error "mihomo not found at $BIN_PATH — skipping start"
+if ! detect_core; then
+    log_error "no supported core found — skipping start"
     exit 0
 fi
 
-start_mihomo
+start_core

@@ -1,0 +1,321 @@
+{
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "local",
+        "tag": "system"
+      },
+      {
+        "type": "tls",
+        "tag": "bootstrap",
+        "server": "223.5.5.5",
+        "server_port": 853,
+        "tls": {
+          "enabled": true,
+          "server_name": "dns.alidns.com"
+        }
+      },
+      {
+        "type": "h3",
+        "tag": "alidns-doh",
+        "server": "dns.alidns.com",
+        "path": "/dns-query",
+        "tls": {
+          "enabled": true,
+          "server_name": "dns.alidns.com"
+        },
+        "domain_resolver": "bootstrap"
+      },
+      {
+        "type": "fakeip",
+        "tag": "fakeip",
+        "inet4_range": "198.18.0.0/15",
+        "inet6_range": "fc00::/18"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": ["fake-ip-filter", "direct"],
+        "action": "route",
+        "server": "alidns-doh"
+      },
+      {
+        "action": "route",
+        "server": "fakeip"
+      }
+    ],
+    "final": "alidns-doh",
+    "strategy": "prefer_ipv4",
+    "cache_capacity": 4096,
+    "reverse_mapping": true
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7890
+    },
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "sing-box",
+      "address": ["172.19.0.1/30"],
+      "mtu": 9000,
+      "auto_route": true,
+      "strict_route": true,
+      "route_exclude_address": [
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.0.0.0/24",
+        "192.0.2.0/24",
+        "192.168.0.0/16",
+        "224.0.0.0/3",
+        "::/127",
+        "fd00::/8",
+        "fe80::/10",
+        "ff00::/8"
+      ],
+      "endpoint_independent_nat": true,
+      "stack": "mixed"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🌐 Select Proxy",
+      "outbounds": ["⚡ Auto Proxy"],
+      "default": "⚡ Auto Proxy",
+      "interrupt_exist_connections": false
+    },
+    {
+      "type": "urltest",
+      "tag": "⚡ Auto Proxy",
+      "outbounds": [],
+      "url": "https://www.apple.com/library/test/success.html",
+      "interval": "30m",
+      "tolerance": 50,
+      "idle_timeout": "30m",
+      "interrupt_exist_connections": false
+    },
+    {
+      "type": "selector",
+      "tag": "🧭 Fallback",
+      "outbounds": ["➡️ Direct", "🌐 Select Proxy", "⚡ Auto Proxy"],
+      "default": "🌐 Select Proxy",
+      "interrupt_exist_connections": false
+    },
+    {
+      "type": "direct",
+      "tag": "➡️ Direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "port": 53,
+        "action": "hijack-dns"
+      },
+      {
+        "action": "sniff",
+        "sniffer": ["tls", "http", "quic"],
+        "timeout": "300ms"
+      },
+      {
+        "ip_is_private": true,
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["lan"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["reject"],
+        "action": "reject"
+      },
+      {
+        "rule_set": ["steam-cn"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["apple-cn"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["microsoft-cn"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["ai"],
+        "action": "route",
+        "outbound": "🌐 Select Proxy"
+      },
+      {
+        "rule_set": ["proxy"],
+        "action": "route",
+        "outbound": "🌐 Select Proxy"
+      },
+      {
+        "rule_set": ["direct"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["lan-ip"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["reject-ip"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      },
+      {
+        "rule_set": ["proxy-ip"],
+        "action": "route",
+        "outbound": "🌐 Select Proxy"
+      },
+      {
+        "rule_set": ["direct-ip"],
+        "action": "route",
+        "outbound": "➡️ Direct"
+      }
+    ],
+    "rule_set": [
+      {
+        "type": "remote",
+        "tag": "fake-ip-filter",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/fakeip-filter.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "lan",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/lan.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "reject",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/reject.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "reject-ip",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/reject@ip.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "steam-cn",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/steam@cn.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "microsoft-cn",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/microsoft@cn.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "apple-cn",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/apple@cn.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "ai",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/ai.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "proxy",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/proxy.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "proxy-ip",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/proxy@ip.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "direct",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/direct.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "direct-ip",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/direct@ip.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      },
+      {
+        "type": "remote",
+        "tag": "lan-ip",
+        "format": "binary",
+        "url": "https://gh-proxy.org/https://raw.githubusercontent.com/xndeye/rule-merger/release/lan@ip.srs",
+        "update_interval": "12h",
+        "download_detour": "➡️ Direct"
+      }
+    ],
+    "auto_detect_interface": true,
+    "default_domain_resolver": "bootstrap",
+    "final": "🧭 Fallback"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db",
+      "store_fakeip": true
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "external_ui_download_url": "https://gh-proxy.org/https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip",
+      "secret": "mihomo",
+      "default_mode": "Rule",
+      "access_control_allow_private_network": true
+    }
+  }
+}

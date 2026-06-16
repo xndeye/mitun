@@ -59,6 +59,7 @@ jobs:
             common_functions.sh \
             skip_mount sepolicy.rule \
             files/config.yaml.example \
+            files/config.json.example \
             webroot/index.html \
             META-INF/com/google/android/update-binary \
             META-INF/com/google/android/updater-script
@@ -76,13 +77,13 @@ jobs:
 
             - KernelSU ≥ 0.7.0
             - Android ≥ 8.0（API 26）
-            - Mihomo ≥ 1.18.0
+            - mihomo ≥ 1.18.0，或 sing-box ≥ 0.9.0
 
             ## 安装
 
             1. 下载 `${{ steps.version.outputs.zip_name }}`，在 KernelSU 管理器安装
-            2. 将 `mihomo` 可执行文件拷贝至 `/data/adb/mitun/mihomo`，`chmod 0755`
-            3. 编辑 `/data/adb/mitun/config.yaml`，填入订阅并修改 `secret`
+            2. 编辑 `.example` 示例配置后复制为实际配置
+            3. 放置对应内核并 `chmod 0755`
             4. 重启设备
 
             ## 校验

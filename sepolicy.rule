@@ -1,12 +1,12 @@
 # SELinux rules for MiTun.
 #
-# Mihomo is invoked from KernelSU's `su` domain. On most stock Android builds
+# The proxy core is invoked from KernelSU's `su` domain. On most stock Android builds
 # the `su` domain is already permissive enough that these rules are a no-op
 # safety net. Keep them as a minimal contract rather than an exhaustive list:
 #   - tun_device chr_file I/O: open /dev/net/tun and issue TUNSETIFF ioctls.
 #   - capability net_admin / net_raw: manage routes, rules, and raw sockets.
 #
-# If you hit avc denials in dmesg (`dmesg | grep avc | grep mihomo`), add the
+# If you hit avc denials in dmesg, add the
 # specific rule rather than broadening these. Do NOT copy unrelated denials
 # from other modules — they usually don't apply.
 
