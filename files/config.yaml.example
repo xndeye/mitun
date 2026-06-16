@@ -69,18 +69,11 @@ tun:
   auto-detect-interface: true
   endpoint-independent-nat: true
 
-  # 白名单模式：仅代理列出的应用；不填此字段则代理所有应用
-  include-package:
-    # - "com.google.android.gms"
-    # - "com.google.android.gsf"
-    # - "com.google.android.gms.location.history"
-    # - "com.google.android.webview"
-    # - "com.google.android.apps.photos"
-    # - "com.android.vending"
-    # - "com.android.providers.downloads"
-    # - "com.android.virtualization.terminal"
-    # - "com.android.shell"
-    # - "com.android.email"
+  # 白名单模式：仅代理列出的应用。默认不写 include-package，即代理所有应用。
+  # include-package:
+  #   - "com.google.android.gms"
+  #   - "com.google.android.gsf"
+  #   - "com.android.vending"
 
   # 排除私有地址段，不走 TUN
   route-exclude-address:
@@ -111,17 +104,6 @@ dns-anchor:
     - https://dns.alidns.com/dns-query    # 阿里 DoH
     - tls://dot.pub:853                   # 腾讯 DoT
     - tls://dns.alidns.com:853            # 阿里 DoT
-
-  # 代理 DNS：代理域名解析，走代理通道
-  proxy: &proxy
-    - https://1.1.1.1/dns-query          # Cloudflare DoH
-    - https://8.8.8.8/dns-query          # Google DoH
-    - tls://1.1.1.1:853                  # Cloudflare DoT
-    - tls://8.8.8.8:853                  # Google DoT
-
-  # 系统 DNS
-  system: &system
-    - system
 
 dns:
   enable: true
@@ -165,7 +147,6 @@ proxies:
   - name: Direct
     type: direct
     udp: true
-    <<: *url-test
 
 proxy-groups:
   - {

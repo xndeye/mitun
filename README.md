@@ -12,12 +12,12 @@ KernelSU 模块，以 TUN 模式运行 [Mihomo](https://github.com/MetaCubeX/mih
 
 1. 在 KernelSU 管理器安装 `mitun-vX.Y.Z.zip`
 2. 将可执行的 mihomo 放置于 `/data/adb/mitun/mihomo`，`chmod 0755`
-3. 编辑 `/data/adb/mitun/config.yaml` 填入订阅或者自行调整
+3. 编辑 `/data/adb/mitun/config.yaml` 填入订阅并修改 `secret`
 4. 重启设备
 
 > **以下字段请勿修改**，否则会破坏模块内部集成：
 >
-> - `external-controller: 127.0.0.1:9090` — Web 控制台跳转与 Action 按钮依赖该端口
+> - `external-controller: 127.0.0.1:9090` — Web 控制台跳转依赖该端口
 > - `external-ui: ui` — Web 控制台静态资源路径
 > - `tun.device: mihomo` — 模块按此接口名定位 TUN；如需更改需同步改
 >   `common_functions.sh` 中的 `TUN_DEVICE`
@@ -68,6 +68,8 @@ ip link show mihomo
 # SELinux 拒绝
 dmesg | grep avc | grep mihomo
 ```
+
+如果日志出现 `avc: denied`，按拒绝项补充 `sepolicy.rule`；不要直接套用其他模块的大范围规则。
 
 ## 卸载
 

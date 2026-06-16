@@ -13,16 +13,13 @@ while [ "$_w" -lt 60 ]; do
 done
 
 if [ "$(getprop sys.boot_completed)" != "1" ]; then
-    log_error "timed out waiting for sys.boot_completed; starting anyway"
+    log_error "timed out waiting for sys.boot_completed; deferring to boot-completed hook"
+    exit 0
 fi
 
 # Small grace for network bring-up
 sleep 5
 
-if [ ! -f "$CONFIG_PATH" ]; then
-    log_error "config not found at $CONFIG_PATH — skipping start"
-    exit 0
-fi
 if [ ! -x "$BIN_PATH" ]; then
     log_error "mihomo not found at $BIN_PATH — skipping start"
     exit 0

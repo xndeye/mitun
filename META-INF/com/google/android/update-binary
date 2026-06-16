@@ -1,5 +1,5 @@
 #!/system/bin/sh
 SKIPUNZIP=1
 # SKIPUNZIP=1: skip auto-extraction, extract manually so files land in $MODPATH
-unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2
+unzip -o "$ZIPFILE" -x 'META-INF/*' -d "$MODPATH" >&2 || exit 1
 . "$MODPATH/customize.sh"

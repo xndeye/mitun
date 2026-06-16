@@ -82,7 +82,7 @@ jobs:
 
             1. 下载 `${{ steps.version.outputs.zip_name }}`，在 KernelSU 管理器安装
             2. 将 `mihomo` 可执行文件拷贝至 `/data/adb/mitun/mihomo`，`chmod 0755`
-            3. 编辑 `/data/adb/mitun/config.yaml`
+            3. 编辑 `/data/adb/mitun/config.yaml`，填入订阅并修改 `secret`
             4. 重启设备
 
             ## 校验
