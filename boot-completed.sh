@@ -1,8 +1,7 @@
 #!/system/bin/sh
-# boot-completed.sh — post-boot health check.
+# boot-completed.sh - autostart entry point after boot completes.
 #
-# service.sh is the primary start path. This hook performs one guarded retry
-# after boot completion; start_core's lock keeps it race-safe with Action.
+# start_core is internally locked to avoid races with the Action button.
 
 MODDIR="${0%/*}"
 . "$MODDIR/common_functions.sh"
@@ -10,17 +9,17 @@ MODDIR="${0%/*}"
 sleep 10
 
 if is_running; then
-    log_info "health check OK, pid=$(read_pid)"
+    log_info "already running after boot, pid=$(read_pid)"
 else
     if ! detect_core; then
-        log_error "no supported core found — skipping boot retry"
+        log_error "no supported core found — skipping boot autostart"
         exit 0
     fi
 
-    log_error "not running after boot — retrying start once"
+    log_info "boot completed — starting core"
     if start_core; then
-        log_info "boot retry OK, pid=$(read_pid)"
+        log_info "boot autostart OK, pid=$(read_pid)"
     else
-        log_error "boot retry failed — check $(core_log_path)"
+        log_error "boot autostart failed — check $(core_log_path)"
     fi
 fi
