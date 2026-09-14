@@ -107,6 +107,20 @@ detect_core() {
     return 1
 }
 
+_update_web_redirect() {
+    _module_dir="$1"
+    _core_name="$2"
+    case "$_core_name" in
+        mihomo) _dashboard_url="http://127.0.0.1:9090/ui/" ;;
+        sing-box) _dashboard_url="http://127.0.0.1:9090/dashboard/" ;;
+        *) return 1 ;;
+    esac
+
+    _webroot_index="$_module_dir/webroot/index.html"
+    [ -f "$_webroot_index" ] || return 1
+    printf '%s\n' "<!DOCTYPE html><script>document.location = '$_dashboard_url'</script></html>" >"$_webroot_index"
+}
+
 core_log_path() {
     [ -n "$CORE_NAME" ] && printf '%s/%s.log\n' "$RUN_DIR" "$CORE_NAME" && return 0
     printf '%s\n' "$CORE_LOG"
@@ -270,6 +284,10 @@ _do_start_core() {
     if ! detect_core; then
         log_error "no supported core found; need mihomo+config.yaml or sing-box+config.json under $DATA_DIR"
         return 1
+    fi
+
+    if ! _update_web_redirect "$MODDIR" "$CORE_NAME"; then
+        log_error "failed to update Web UI redirect, core=$CORE_NAME"
     fi
 
     ensure_tun_device || return 1

@@ -19,7 +19,7 @@ KernelSU 模块，以 TUN 模式运行 [mihomo](https://github.com/MetaCubeX/mih
 5. 重启设备
 
 > 安装器只复制 `.example` 示例文件，不会自动生成或覆盖实际配置。实际启动哪个内核由可执行文件和实际配置文件是否同时存在决定；同时存在两组文件时，模块优先启动 mihomo。
-> !请保证配置文件中的 Web 控制端口、Web UI 路径和 TUN 接口名和示例配置一致，否则将影响模块运行。
+> 请保证配置文件中的 Web 控制端口、Web UI 路径和 TUN 接口名与示例配置一致，否则将影响模块运行。
 
 ## 控制
 
@@ -29,11 +29,12 @@ KernelSU 模块，以 TUN 模式运行 [mihomo](https://github.com/MetaCubeX/mih
 
 ## Web 控制台
 
-```
-http://127.0.0.1:9090/dashboard
-```
+通过 KernelSU 管理器打开模块 WebUI，模块会根据实际启动的核心自动跳转：
 
-mihomo 示例配置已启用该入口，密码即 `config.yaml` 的 `secret`。sing-box 需在 `config.json` 中自行配置兼容控制接口和面板。
+- mihomo: `http://127.0.0.1:9090/ui/`
+- sing-box: `http://127.0.0.1:9090/dashboard/`
+
+两个示例配置均已启用对应入口，密码为实际配置中的 `secret`。
 
 ## 文件布局
 
