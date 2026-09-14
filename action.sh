@@ -4,23 +4,24 @@
 MODDIR="${0%/*}"
 . "$MODDIR/common_functions.sh"
 
-LOCK_DIR="$RUN_DIR/action.lock"
-
-mkdir -p "$RUN_DIR"
-
-if ! try_lock "$LOCK_DIR"; then
-    ksud module config set override.description "⏳ Another MiTun action is in progress." 2>/dev/null || true
-    echo "⏳ Another MiTun action is in progress."
+if ! _acquire_lifecycle_lock; then
+    ksud module config set override.description "⏳ Another MiTun operation is in progress or runtime directory setup failed." 2>/dev/null || true
+    echo "⏳ Another MiTun operation is in progress or runtime directory setup failed."
     exit 1
 fi
-trap 'release_lock "$LOCK_DIR"' EXIT INT TERM
+trap '_release_lifecycle_lock' EXIT INT TERM
 
 if is_running; then
-    stop_core
-    ksud module config set override.description "⏹ MiTun stopped." 2>/dev/null || true
-    echo "⏹ MiTun stopped."
+    if _do_stop_core; then
+        ksud module config set override.description "⏹ MiTun stopped." 2>/dev/null || true
+        echo "⏹ MiTun stopped."
+    else
+        ksud module config set override.description "❌ MiTun failed to stop — check $LOG_FILE" 2>/dev/null || true
+        echo "❌ MiTun failed to stop — check $LOG_FILE"
+        exit 1
+    fi
 else
-    if start_core; then
+    if _do_start_core; then
         ksud module config set override.description "▶ MiTun started." 2>/dev/null || true
         echo "▶ MiTun started."
     else

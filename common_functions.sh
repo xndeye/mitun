@@ -28,12 +28,19 @@ LOG_MAX_KB="${LOG_MAX_KB:-1024}"
 
 # ----- logging ---------------------------------------------------------------
 
+ensure_run_dir() {
+    mkdir -p "$RUN_DIR" || return 1
+    chown 0:0 "$RUN_DIR" || return 1
+    chmod 0700 "$RUN_DIR" || return 1
+}
+
 _mitun_log() {
     _lvl="$1"; shift
     _ts="$(date '+%Y-%m-%d %H:%M:%S %z' 2>/dev/null)"
     _line="[$_ts] [$_lvl] $*"
-    mkdir -p "$RUN_DIR" 2>/dev/null
-    printf '%s\n' "$_line" >>"$LOG_FILE" 2>/dev/null
+    if ensure_run_dir 2>/dev/null; then
+        printf '%s\n' "$_line" >>"$LOG_FILE" 2>/dev/null
+    fi
     log -t MiTun "$_line" 2>/dev/null || true
 }
 
@@ -65,7 +72,10 @@ try_lock() {
         fi
     fi
     mkdir "$_lock" 2>/dev/null || return 1
-    printf '%s\n' "$$" >"$_lock/pid" 2>/dev/null
+    if ! printf '%s\n' "$$" >"$_lock/pid" 2>/dev/null; then
+        rm -rf "$_lock" 2>/dev/null
+        return 1
+    fi
     return 0
 }
 
@@ -111,23 +121,22 @@ read_pid() {
     tr -d '[:space:]' <"$LEGACY_PID_FILE" 2>/dev/null
 }
 
-# is_running: 0 if a supported core launched by MiTun is alive.
-# Identity is checked against /proc/<pid>/cmdline to avoid PID-reuse
-# misidentification. Unlike a naive substring grep (which matches e.g.
-# `less /data/adb/mitun/run/core.log`), we accept only supported core names or
-# exact binary paths as NUL-separated tokens.
-# Side effect: removes stale PID_FILE on mismatch.
+_is_core_pid() {
+    _p="$1"
+    if [ -n "$_p" ] && [ "$_p" -gt 0 ] 2>/dev/null && [ -r "/proc/$_p/exe" ]; then
+        _exe="$(readlink "/proc/$_p/exe" 2>/dev/null)"
+        [ "$_exe" = "$MIHOMO_BIN" ] && return 0
+        [ "$_exe" = "$MIHOMO_BIN (deleted)" ] && return 0
+        [ "$_exe" = "$SING_BOX_BIN" ] && return 0
+        [ "$_exe" = "$SING_BOX_BIN (deleted)" ] && return 0
+    fi
+    return 1
+}
+
+# PID 对应进程必须由 MiTun 的完整二进制路径启动；不匹配时清理陈旧 PID 文件。
 is_running() {
     _p="$(read_pid)"
-    if [ -n "$_p" ] && [ "$_p" -gt 0 ] 2>/dev/null && [ -r "/proc/$_p/cmdline" ]; then
-        _cmdline="$(tr '\0' '\n' <"/proc/$_p/cmdline" 2>/dev/null)"
-        _argv0="$(printf '%s\n' "$_cmdline" | head -n 1)"
-        _base="${_argv0##*/}"
-        [ "$_base" = "mihomo" ] && return 0
-        [ "$_base" = "sing-box" ] && return 0
-        printf '%s\n' "$_cmdline" | grep -Fxq "$MIHOMO_BIN" && return 0
-        printf '%s\n' "$_cmdline" | grep -Fxq "$SING_BOX_BIN" && return 0
-    fi
+    _is_core_pid "$_p" && return 0
     rm -f "$PID_FILE" "$LEGACY_PID_FILE" 2>/dev/null
     return 1
 }
@@ -164,22 +173,39 @@ _cleanup_tun() {
 
 # ----- lifecycle -------------------------------------------------------------
 
+_wait_for_process_exit() {
+    _p="$1"; _timeout="$2"; _waited=0
+    while [ "$_waited" -lt "$_timeout" ] && _is_core_pid "$_p"; do
+        sleep 1
+        _waited=$((_waited + 1))
+    done
+    ! _is_core_pid "$_p"
+}
+
 _stop_pid() {
     _p="$1"
-    [ -n "$_p" ] && [ -d "/proc/$_p" ] || return 0
-    kill -TERM "$_p" 2>/dev/null
-    _w=0
-    while [ "$_w" -lt 5 ] && [ -d "/proc/$_p" ]; do
-        sleep 1
-        _w=$((_w + 1))
-    done
-    [ -d "/proc/$_p" ] && kill -KILL "$_p" 2>/dev/null
-    sleep 1
+    _is_core_pid "$_p" || return 0
+
+    if ! kill -TERM "$_p" 2>/dev/null && _is_core_pid "$_p"; then
+        log_error "failed to send TERM, pid=$_p"
+        return 1
+    fi
+    _wait_for_process_exit "$_p" 5 && return 0
+
+    if ! kill -KILL "$_p" 2>/dev/null && _is_core_pid "$_p"; then
+        log_error "failed to send KILL, pid=$_p"
+        return 1
+    fi
+    if ! _wait_for_process_exit "$_p" 5; then
+        log_error "process did not exit after KILL, pid=$_p"
+        return 1
+    fi
+    return 0
 }
 
 protect_process() {
     _p="$1"
-    [ -n "$_p" ] && [ -d "/proc/$_p" ] || return 0
+    _is_core_pid "$_p" || return 0
 
     _ok=1
     if echo -1000 >"/proc/$_p/oom_score_adj" 2>/dev/null; then
@@ -194,11 +220,10 @@ protect_process() {
     fi
 }
 
-# Start lock — serializes concurrent start_core invocations (service.sh vs
-# boot-completed.sh vs action.sh). Blocks up to 60s, reclaims dead holders.
-_acquire_start_lock() {
-    mkdir -p "$RUN_DIR"
-    _lock="$RUN_DIR/start.lock"
+# 生命周期锁串行化启动、停止和 Action 状态切换，最多等待 60 秒。
+_acquire_lifecycle_lock() {
+    ensure_run_dir || return 1
+    _lock="$RUN_DIR/lifecycle.lock"
     _tries=0
     while [ "$_tries" -lt 60 ]; do
         try_lock "$_lock" && return 0
@@ -208,24 +233,30 @@ _acquire_start_lock() {
     return 1
 }
 
-_release_start_lock() { release_lock "$RUN_DIR/start.lock"; }
+_release_lifecycle_lock() { release_lock "$RUN_DIR/lifecycle.lock"; }
 
-# Idempotent: returns 0 if already running. Concurrent callers are serialized
-# and collapse into a single exec via the start lock.
-start_core() {
-    if is_running; then
-        log_info "already running, pid=$(read_pid)"
-        return 0
+_write_pid() {
+    _pid="$1"
+    _pid_tmp="$PID_FILE.$$"
+    if ! printf '%s\n' "$_pid" >"$_pid_tmp" ||
+       ! chmod 0600 "$_pid_tmp" ||
+       ! mv -f "$_pid_tmp" "$PID_FILE"; then
+        rm -f "$_pid_tmp" 2>/dev/null
+        return 1
     fi
+    return 0
+}
 
-    if ! _acquire_start_lock; then
-        log_error "start-lock timeout"
+# 已运行时直接成功返回。
+start_core() {
+    if ! _acquire_lifecycle_lock; then
+        log_error "failed to acquire lifecycle lock while starting"
         return 1
     fi
 
     _do_start_core
     _rc=$?
-    _release_start_lock
+    _release_lifecycle_lock
     return "$_rc"
 }
 
@@ -242,7 +273,6 @@ _do_start_core() {
     fi
 
     ensure_tun_device || return 1
-    mkdir -p "$RUN_DIR"
 
     CORE_LOG="$(core_log_path)"
     rotate_log_if_big "$CORE_LOG"
@@ -260,19 +290,37 @@ _do_start_core() {
     _pid=$!
 
     sleep 1
-    if ! [ -d "/proc/$_pid" ]; then
+    if ! _is_core_pid "$_pid"; then
         log_error "$CORE_NAME exited immediately — check $CORE_LOG"
         return 1
     fi
 
     protect_process "$_pid"
-    printf '%s\n' "$_pid" >"$PID_FILE"
+    if ! _write_pid "$_pid"; then
+        log_error "failed to write PID file $PID_FILE"
+        if ! _stop_pid "$_pid"; then
+            log_error "failed to stop untracked $CORE_NAME process, pid=$_pid"
+            return 1
+        fi
+        _cleanup_tun
+        return 1
+    fi
     rm -f "$LEGACY_PID_FILE" 2>/dev/null
     log_info "started $CORE_NAME, pid=$_pid"
 
     if [ -n "$TUN_DEVICE" ] && ! wait_for_tun "$TUN_DEVICE" 10; then
         log_error "TUN '$TUN_DEVICE' did not appear within 10s"
-        _stop_pid "$_pid"
+        if ! _stop_pid "$_pid"; then
+            log_error "failed to stop $CORE_NAME after startup timeout, pid=$_pid"
+            return 1
+        fi
+        rm -f "$PID_FILE" "$LEGACY_PID_FILE" 2>/dev/null
+        _cleanup_tun
+        return 1
+    fi
+
+    if ! _is_core_pid "$_pid"; then
+        log_error "$CORE_NAME exited during startup — check $CORE_LOG"
         rm -f "$PID_FILE" "$LEGACY_PID_FILE" 2>/dev/null
         _cleanup_tun
         return 1
@@ -282,15 +330,30 @@ _do_start_core() {
     return 0
 }
 
-# Idempotent. Symmetric with start: always cleans TUN on exit.
+# 未运行时直接成功返回；确认进程退出后才清理 TUN。
 stop_core() {
+    if ! _acquire_lifecycle_lock; then
+        log_error "failed to acquire lifecycle lock while stopping"
+        return 1
+    fi
+
+    _do_stop_core
+    _rc=$?
+    _release_lifecycle_lock
+    return "$_rc"
+}
+
+_do_stop_core() {
     detect_core >/dev/null 2>&1 || true
     if ! is_running; then
         _cleanup_tun
         return 0
     fi
     _p="$(read_pid)"
-    _stop_pid "$_p"
+    if ! _stop_pid "$_p"; then
+        log_error "failed to stop core, pid=$_p"
+        return 1
+    fi
     rm -f "$PID_FILE" "$LEGACY_PID_FILE" 2>/dev/null
     _cleanup_tun
     log_info "stopped, pid=$_p"

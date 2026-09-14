@@ -7,9 +7,18 @@ SING_BOX_EXAMPLE_PATH="$DATA_DIR/config.json.example"
 
 ui_print "- installing MiTun"
 
-mkdir -p "$DATA_DIR" "$DATA_DIR/run" || exit 1
-chown 0:0 "$DATA_DIR" "$DATA_DIR/run" 2>/dev/null || true
-chmod 0700 "$DATA_DIR" "$DATA_DIR/run" 2>/dev/null || true
+if ! mkdir -p "$DATA_DIR" "$DATA_DIR/run"; then
+    ui_print "! failed to create $DATA_DIR and its runtime directory"
+    exit 1
+fi
+if ! chown 0:0 "$DATA_DIR" "$DATA_DIR/run" 2>/dev/null; then
+    ui_print "! failed to set runtime directory ownership"
+    exit 1
+fi
+if ! chmod 0700 "$DATA_DIR" "$DATA_DIR/run" 2>/dev/null; then
+    ui_print "! failed to set runtime directory permissions"
+    exit 1
+fi
 
 if [ ! -f "$MIHOMO_EXAMPLE_PATH" ]; then
     cp "$MODPATH/files/config.yaml.example" "$MIHOMO_EXAMPLE_PATH" || exit 1

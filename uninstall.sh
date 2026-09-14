@@ -5,7 +5,10 @@
 MODDIR="${0%/*}"
 . "$MODDIR/common_functions.sh"
 
-stop_core
+if ! stop_core; then
+    log_error "uninstall aborted because the core could not be stopped safely"
+    exit 1
+fi
 
 # Remove runtime files we created. Keep configs and anything the user
 # placed under $DATA_DIR manually. Drop $RUN_DIR last: any log_info after

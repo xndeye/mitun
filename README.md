@@ -30,7 +30,7 @@ KernelSU 模块，以 TUN 模式运行 [mihomo](https://github.com/MetaCubeX/mih
 ## Web 控制台
 
 ```
-http://127.0.0.1:9090/ui
+http://127.0.0.1:9090/dashboard
 ```
 
 mihomo 示例配置已启用该入口，密码即 `config.yaml` 的 `secret`。sing-box 需在 `config.json` 中自行配置兼容控制接口和面板。
