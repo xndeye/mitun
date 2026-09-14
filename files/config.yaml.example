@@ -17,9 +17,9 @@ tcp-concurrent: true
 find-process-mode: strict
 
 # --- 外部控制器 ---
-external-ui: ui
+external-ui: dashboard
 external-controller: 127.0.0.1:9090
-external-ui-url: "https://gh-proxy.org/https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+external-ui-url: "https://github.com/Zephyruso/zashboard/releases/download/v3.22.0/dist.zip"
 secret: "【替换你的控制器密钥，留空表示无】"
 
 # --- 连接保活 ---
@@ -111,8 +111,8 @@ dns:
   ipv6: false
   prefer-h3: true          # 优先使用 HTTP/3
   enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.0/15
-  fake-ip-range6: fc00:dead:cafe::/48
+  fake-ip-range: 198.18.0.0/16
+  fake-ip-range6: 2001:2::/49
   fake-ip-filter:
     - rule-set:fake-ip-filter
     - rule-set:direct
